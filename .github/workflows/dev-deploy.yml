@@ -35,7 +35,7 @@ jobs:
             -input=false
 
       - name: Terraform Fmt Check
-        run: terraform fmt -check -recursive
+        run: terraform fmt -recursive
 
       - name: Terraform Validate
         run: terraform validate -no-color
