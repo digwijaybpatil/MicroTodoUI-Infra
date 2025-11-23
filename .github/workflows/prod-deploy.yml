@@ -1,0 +1,84 @@
+name: Terraform Deploy - Prod
+
+on:
+  workflow_dispatch: # Manual trigger
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: "Plan"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init (backend)
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=rg-digwi-terraform-remote" \
+            -backend-config="storage_account_name=stgdigwiterraformstate" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=${{ secrets.TF_STATE_KEY }}" \
+            -input=false
+
+      - name: Terraform Plan (create binary)
+        run: |
+          terraform plan \
+            -input=false \
+            -no-color \
+            -var-file="environments/prod/prod.tfvars" \
+            -out=tfplan.binary
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-binary
+          path: tfplan.binary
+
+  apply:
+    name: "Apply (requires prod approval)"
+    needs: plan # depend on the plan job
+    runs-on: ubuntu-latest
+    environment: prod # requires manual approval here
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init (re-init remote backend)
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=rg-digwi-terraform-remote" \
+            -backend-config="storage_account_name=stgdigwiterraformstate" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=${{ secrets.TF_STATE_KEY }}" \
+            -input=false
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-binary
+          path: .
+
+      - name: Terraform Apply (use the exact binary plan)
+        run: |
+          terraform apply -input=false tfplan.binary

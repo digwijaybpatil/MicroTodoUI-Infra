@@ -1,0 +1,61 @@
+name: "Terraform Deploy - Dev"
+
+on:
+  push:
+    branches: [main] # Auto-deploy on push to main branch
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-Dev:
+    name: "Terraform Deploy (Dev)"
+    runs-on: ubuntu-latest
+    environment: dev #No approval needed for dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }} #Repo level secret
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=rg-digwi-terraform-remote" \
+            -backend-config="storage_account_name=stgdigwiterraformstate" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=${{ secrets.TF_STATE_KEY}}" \
+            -input=false
+
+      - name: Terraform Fmt Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate -no-color
+
+      # - name: Terraform Plan
+      #   run: |
+      #     terraform plan \
+      #       -input=false \
+      #       -no-color \
+      #       -var-file="environments/dev/dev.tfvars" \
+      #       -out=tfplan.binary
+      #     terraform show -no-color tfplan.binary > tfplan.txt
+
+      # - name: Upload Plan
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: dev-terraform-plan
+      #     path: tfplan.txt
+
+      - name: Terraform Apply
+        run: |
+          terraform apply -auto-approve \
+            -var-file="environments/dev/dev.tfvars"
