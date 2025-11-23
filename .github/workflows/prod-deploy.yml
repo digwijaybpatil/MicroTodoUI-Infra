@@ -1,7 +1,7 @@
 name: Terraform Deploy - Prod
 
 on:
-  workflow_dispatch: # Manual trigger
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,21 +18,24 @@ jobs:
       - name: Azure Login
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
-      - name: Terraform Init (backend)
+      - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="resource_group_name=rg-digwi-terraform-remote" \
-            -backend-config="storage_account_name=stgdigwiterraformstate" \
-            -backend-config="container_name=tfstate" \
-            -backend-config="key=${{ secrets.TF_STATE_KEY }}" \
+            -backend-config="resource_group_name=${{ secrets.TF_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STORAGE_ACCOUNT_NAME }}" \
+            -backend-config="container_name=${{ secrets.TF_CONTAINER_NAME }}" \
+            -backend-config="key=${{ secrets.TF_STATE_KEY_PROD }}" \
             -input=false
 
-      - name: Terraform Plan (create binary)
+      - name: Terraform Plan (binary)
         run: |
           terraform plan \
             -input=false \
@@ -40,17 +43,22 @@ jobs:
             -var-file="environments/prod/prod.tfvars" \
             -out=tfplan.binary
 
-      - name: Upload plan artifact
+      - name: Generate human-readable plan
+        run: terraform show -no-color tfplan.binary > tfplan.txt
+
+      - name: Upload plan (binary + text)
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-binary
-          path: tfplan.binary
+          name: tfplan
+          path: |
+            tfplan.binary
+            tfplan.txt
 
   apply:
     name: "Apply (requires prod approval)"
-    needs: plan # depend on the plan job
+    needs: plan
     runs-on: ubuntu-latest
-    environment: prod # requires manual approval here
+    environment: prod # approval required
 
     steps:
       - name: Checkout
@@ -59,26 +67,27 @@ jobs:
       - name: Azure Login
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
-      - name: Terraform Init (re-init remote backend)
+      - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="resource_group_name=rg-digwi-terraform-remote" \
-            -backend-config="storage_account_name=stgdigwiterraformstate" \
-            -backend-config="container_name=tfstate" \
-            -backend-config="key=${{ secrets.TF_STATE_KEY }}" \
+            -backend-config="resource_group_name=${{ secrets.TF_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STORAGE_ACCOUNT_NAME }}" \
+            -backend-config="container_name=${{ secrets.TF_CONTAINER_NAME }}" \
+            -backend-config="key=${{ secrets.TF_STATE_KEY_PROD }}" \
             -input=false
 
-      - name: Download plan artifact
+      - name: Download plan
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-binary
-          path: .
+          name: tfplan
 
-      - name: Terraform Apply (use the exact binary plan)
-        run: |
-          terraform apply -input=false tfplan.binary
+      - name: Terraform Apply
+        run: terraform apply -input=false tfplan.binary

@@ -20,18 +20,21 @@ jobs:
       - name: Azure Login
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
-      - name: Terraform Init
+      - name: Terraform Init (re-init remote backend)
         run: |
           terraform init \
-            -backend-config="resource_group_name=rg-digwi-terraform-remote" \
-            -backend-config="storage_account_name=stgdigwiterraformstate" \
-            -backend-config="container_name=tfstate" \
-            -backend-config="key=microtodoui.dev.tfstate" \
+            -backend-config="resource_group_name=${{ secrets.TF_RESOURCE_GROUP}}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STORAGE_ACCOUNT_NAME}}" \
+            -backend-config="container_name=${{ secrets.TF_CONTAINER_NAME}}" \
+            -backend-config="key=${{ secrets.TF_STATE_KEY }}" \
             -input=false
 
       - name: Terraform Format Check
