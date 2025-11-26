@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
 
+  workflow_dispatch:
+    # manual trigger for testing the PR workflow
+
 permissions:
   contents: read
 
