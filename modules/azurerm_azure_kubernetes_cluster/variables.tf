@@ -12,7 +12,7 @@ variable "resource_group_name" {
 
 variable "node_vm_size" {
   type    = string
-  default = "Standard_D2_v2"
+  default = "Standard_B2s"
 }
 
 variable "subnet_id" {
