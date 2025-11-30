@@ -1,8 +1,9 @@
 name: "Terraform Deploy - Dev"
 
 on:
-  push:
-    branches: [main] # Auto-deploy on push to main branch
+  # push:
+  #   branches: [main] # Auto-deploy on push to main branch
+  workflow_dispatch:
 
 permissions:
   contents: read
